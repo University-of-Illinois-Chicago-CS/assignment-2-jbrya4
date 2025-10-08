@@ -2,9 +2,12 @@ import vertexShaderSrc from './vertex.glsl.js';
 import fragmentShaderSrc from './fragment.glsl.js'
 
 var gl = null;
-var vao = null;
+var box_vao = null;
+var gray_vao = null;
 var program = null;
 var vertexCount = 0;
+var gray_vertexCount = 0;
+var box_vertexCount = 0;
 var uniformModelViewLoc = null;
 var uniformProjectionLoc = null;
 var heightmapData = null;
@@ -49,10 +52,9 @@ function processImage(img)
 	return {
 		data: heightArray,
 		width: sw,
-		height: sw
+		height: sh
 	};
 }
-
 
 window.loadImageFile = function(event)
 {
@@ -81,7 +83,81 @@ window.loadImageFile = function(event)
 			*/
 			console.log('loaded image: ' + heightmapData.width + ' x ' + heightmapData.height);
 
-		};
+			let x = heightmapData.width;
+			let z = heightmapData.height;
+
+			let heightMap = heightmapData.data;
+			// console.log(heightMap);
+
+			let positions = [];
+			https://www.geeksforgeeks.org/dsa/emulating-a-2-d-array-using-1-d-array/
+
+			//each quad makes two triangles
+			//every quad needs a right and bottom pixel to form
+            
+			//skip the last column and last row because there are no more pixels below or to the right
+			
+			for (let row = 0; row < z-1; row++){
+				for (let col = 0; col < x-1; col++){
+
+					//positions of the pixels to form the triangles
+					let top_left = heightMap[(row*x) + col];
+					//skip last column so add 1
+					let top_right = heightMap[(row*x) + (col +1)];
+					//skip last row so add 1
+					let bot_left= heightMap[ ((row+1)*x)+ col];
+					//skip last row and last column 
+					let bot_right = heightMap [ ((row+1)*x)+(col+1)];
+
+					//x and z positions need to be normalized
+
+					 let top_left_x = col/x;
+					 let top_right_x = (col + 1)/x;
+					 let bot_left_x = col/x; 
+                     let bot_right_x = (col + 1)/x;
+
+					let top_left_z = row/z;
+					let top_right_z = row/z;
+					let bot_left_z = (row + 1)/z;
+					let bot_right_z = (row + 1)/z;
+
+					//y is mapped to the height
+					let top_left_y = top_left ;
+		        	let top_right_y = top_right;
+                    let bot_left_y = bot_left ;
+                    let bot_right_y = bot_right ;
+
+					/*
+                      TL TR     A B    ABC makes first triangle
+					  BL BR     C D    BCD makes second triangle
+					*/
+
+                    positions.push(
+                    top_left_x, top_left_y, top_left_z,
+                    top_right_x, top_right_y, top_right_z,
+                    bot_left_x, bot_left_y, bot_left_z);
+
+                    positions.push(
+                    top_right_x, top_right_y,top_right_z,
+                    bot_right_x, bot_right_y,bot_right_z,
+                    bot_left_x, bot_left_y, bot_left_z);
+				}
+			}
+
+		console.log("positions sample:", positions.slice(0, 100));
+
+	    let posBuffer = createBuffer(gl, gl.ARRAY_BUFFER, new Float32Array(positions));
+
+        let posAttribLoc = gl.getAttribLocation(program, "position");
+
+		//color is calculated in vertex shader
+
+        gray_vao = createVAO(gl, posAttribLoc, posBuffer, null, null,null,null);
+
+        gray_vertexCount = positions.length / 3;
+    
+	};
+		
 		img.onerror = function() 
 		{
 			console.error("Invalid image file.");
@@ -93,7 +169,6 @@ window.loadImageFile = function(event)
 	};
 	reader.readAsDataURL(f);
 }
-
 
 function setupViewMatrix(eye, target)
 {
@@ -131,13 +206,24 @@ function draw()
 
 	// TODO: set up transformations to the model
 
+	let translate = translateMatrix(-0.5,3,3);
+    let scale = scaleMatrix(1,1,1);
+	// let rotateY = rotateYMatrix(3.14);
+	// let rotateX = rotateXMatrix(3.14);
+	// let rotateZ = rotateZMatrix(3.14);
+
+	modelMatrix = multiplyMatrices(translate,modelMatrix);
+	modelMatrix = multiplyMatrices(scale,modelMatrix);
+	// modelMatrix = multiplyMatrices(rotateX,modelMatrix);
+	// modelMatrix = multiplyMatrices(rotateY,modelMatrix);
+	// modelMatrix = multiplyMatrices(rotateZ,modelMatrix)
+	
 	// setup viewing matrix
 	var eyeToTarget = subtract(target, eye);
 	var viewMatrix = setupViewMatrix(eye, target);
 
 	// model-view Matrix = view * model
 	var modelviewMatrix = multiplyMatrices(viewMatrix, modelMatrix);
-
 
 	// enable depth testing
 	gl.enable(gl.DEPTH_TEST);
@@ -147,6 +233,7 @@ function draw()
 
 	gl.clearColor(0.2, 0.2, 0.2, 1);
 	gl.clear(gl.COLOR_BUFFER_BIT);
+	gl.clear(gl.DEPTH_BUFFER_BIT);
 
 	gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 	gl.useProgram(program);
@@ -155,10 +242,17 @@ function draw()
 	gl.uniformMatrix4fv(uniformModelViewLoc, false, new Float32Array(modelviewMatrix));
 	gl.uniformMatrix4fv(uniformProjectionLoc, false, new Float32Array(projectionMatrix));
 
-	gl.bindVertexArray(vao);
-	
-	var primitiveType = gl.TRIANGLES;
-	gl.drawArrays(primitiveType, 0, vertexCount);
+    
+if (gray_vao) {
+    gl.bindVertexArray(gray_vao);
+    gl.drawArrays(gl.TRIANGLES, 0, gray_vertexCount);
+	vertexCount = gray_vertexCount;
+} else if(box_vao) {
+    // draw the box
+    gl.bindVertexArray(box_vao);
+    gl.drawArrays(gl.TRIANGLES, 0, box_vertexCount);
+	vertexCount = box_vertexCount;
+}	
 
 	requestAnimationFrame(draw);
 
@@ -274,6 +368,8 @@ function addMouseCallback(canvas)
 		console.log('mouse drag by: ' + deltaX + ', ' + deltaY);
 
 		// implement dragging logic
+
+		
 	});
 
 	document.addEventListener("mouseup", function () {
@@ -297,8 +393,8 @@ function initialize()
 	addMouseCallback(canvas);
 
 	var box = createBox();
-	vertexCount = box.positions.length / 3;		// vertexCount is global variable used by draw()
-	console.log(box);
+	box_vertexCount = box.positions.length / 3;		// vertexCount is global variable used by draw()
+	// console.log(box);
 
 	// create buffers to put in box
 	var boxVertices = new Float32Array(box['positions']);
@@ -315,7 +411,7 @@ function initialize()
 	uniformModelViewLoc = gl.getUniformLocation(program, 'modelview');
 	uniformProjectionLoc = gl.getUniformLocation(program, 'projection');
 
-	vao = createVAO(gl, 
+	box_vao = createVAO(gl, 
 		// positions
 		posAttribLoc, posBuffer, 
 
