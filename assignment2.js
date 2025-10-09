@@ -11,6 +11,10 @@ var box_vertexCount = 0;
 var uniformModelViewLoc = null;
 var uniformProjectionLoc = null;
 var heightmapData = null;
+var leftVertZ = 0;
+var leftHorY = 0;
+var wheelZoom = 0;
+var modelMatrix;
 
 function processImage(img)
 {
@@ -109,7 +113,7 @@ window.loadImageFile = function(event)
 					//skip last row and last column 
 					let bot_right = heightMap [ ((row+1)*x)+(col+1)];
 
-					//x and z positions need to be normalized
+					//x and z positions
 
 					 let top_left_x = col/x;
 					 let top_right_x = (col + 1)/x;
@@ -182,6 +186,44 @@ function setupViewMatrix(eye, target)
     return view;
 
 }
+
+//https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Strict_equality
+//returns rotation value in radians
+function Rotation(axis) {
+	let div = document.querySelector("#config");
+	let radians = 0;
+	if (axis === 0) {
+	let slider = div.querySelector("#rotationY");
+	let rot_y = Number(slider.value);
+	radians = (rot_y  * Math.PI) / 180 ;
+	}
+	else if (axis === 1){
+	let slider = div.querySelector("#rotationZ");
+	let rot_z = Number(slider.value);
+	radians = (rot_z  * Math.PI) / 180 ;
+	}
+	else if(axis === 2){
+	let slider = div.querySelector("#rotationX");
+	let rot_x = Number(slider.value);
+	radians = (rot_x  * Math.PI) / 180 ;
+	}
+    return radians;
+}
+
+function changeElevation() {
+	let div = document.querySelector("#config");
+    let slider = div.querySelector("#height");
+	let h = Number(slider.value);
+    return h;
+}
+
+function changeZoom(){
+	let div = document.querySelector("#config");
+    let slider = div.querySelector("#scale");
+	let zoom = Number(slider.value);
+    return zoom;
+}
+
 function draw()
 {
 
@@ -197,26 +239,39 @@ function draw()
 		nearClip,
 		farClip,
 	);
+   
+    // var orthographicMatrix = orthographicMatrix(0,0,1,1,-1,1);
 
 	// eye and target
 	var eye = [0, 5, 5];
 	var target = [0, 0, 0];
 
-	var modelMatrix = identityMatrix();
+	modelMatrix = identityMatrix();
 
 	// TODO: set up transformations to the model
+	modelMatrix = multiplyMatrices(scaleMatrix(4,1.5,3),modelMatrix);
+	modelMatrix = multiplyMatrices(translateMatrix(-2,1,1),modelMatrix);
 
-	let translate = translateMatrix(-0.5,3,3);
-    let scale = scaleMatrix(1,1,1);
-	// let rotateY = rotateYMatrix(3.14);
-	// let rotateX = rotateXMatrix(3.14);
-	// let rotateZ = rotateZMatrix(3.14);
+	// //flips mesh forward and backward
+	let rotateX = rotateXMatrix(Rotation(2));
+    modelMatrix = multiplyMatrices(rotateX,modelMatrix);
 
-	modelMatrix = multiplyMatrices(translate,modelMatrix);
-	modelMatrix = multiplyMatrices(scale,modelMatrix);
-	// modelMatrix = multiplyMatrices(rotateX,modelMatrix);
-	// modelMatrix = multiplyMatrices(rotateY,modelMatrix);
-	// modelMatrix = multiplyMatrices(rotateZ,modelMatrix)
+	//turns mesh left and right
+	let rotateY = rotateYMatrix(Rotation(0));	
+    modelMatrix = multiplyMatrices(rotateY,modelMatrix);
+
+	// //flips the mesh left and right
+	let rotateZ = rotateZMatrix(Rotation(1));
+	modelMatrix = multiplyMatrices(rotateZ,modelMatrix)
+
+	if(gray_vao) {
+	//Height slider changes elevation
+	 let max_y = heightmapData.height;
+	 modelMatrix = multiplyMatrices(scaleMatrix(1,changeElevation()/max_y*4,1),modelMatrix);
+	}
+
+	//zooming in and out
+    modelMatrix = multiplyMatrices(scaleMatrix(changeZoom()*0.01,changeZoom()*0.01,changeZoom()*0.01),modelMatrix);
 	
 	// setup viewing matrix
 	var eyeToTarget = subtract(target, eye);
@@ -242,7 +297,6 @@ function draw()
 	gl.uniformMatrix4fv(uniformModelViewLoc, false, new Float32Array(modelviewMatrix));
 	gl.uniformMatrix4fv(uniformProjectionLoc, false, new Float32Array(projectionMatrix));
 
-    
 if (gray_vao) {
     gl.bindVertexArray(gray_vao);
     gl.drawArrays(gl.TRIANGLES, 0, gray_vertexCount);
@@ -368,7 +422,11 @@ function addMouseCallback(canvas)
 		console.log('mouse drag by: ' + deltaX + ', ' + deltaY);
 
 		// implement dragging logic
-
+       var rot_Y = rotateYMatrix(deltaX * Math.PI/180); 
+       var rot_Z = rotateZMatrix(deltaY * Math.PI/180);
+       
+       modelMatrix = multiplyMatrices(rot_Y, modelMatrix);
+       modelMatrix = multiplyMatrices(rot_Z, modelMatrix);
 		
 	});
 
