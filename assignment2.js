@@ -148,7 +148,7 @@ window.loadImageFile = function(event)
 				}
 			}
 
-		console.log("positions sample:", positions.slice(0, 100));
+	    console.log("positions sample:", positions.slice(0, 100));
 
 	    let posBuffer = createBuffer(gl, gl.ARRAY_BUFFER, new Float32Array(positions));
 
@@ -193,19 +193,19 @@ function Rotation(axis) {
 	let div = document.querySelector("#config");
 	let radians = 0;
 	if (axis === 0) {
-	let slider = div.querySelector("#rotationY");
-	let rot_y = Number(slider.value);
-	radians = (rot_y  * Math.PI) / 180 ;
+		let slider = div.querySelector("#rotationY");
+		let rot_y = Number(slider.value);
+		radians = (rot_y  * Math.PI) / 180 ;
 	}
 	else if (axis === 1){
-	let slider = div.querySelector("#rotationZ");
-	let rot_z = Number(slider.value);
-	radians = (rot_z  * Math.PI) / 180 ;
+		let slider = div.querySelector("#rotationZ");
+		let rot_z = Number(slider.value);
+		radians = (rot_z  * Math.PI) / 180 ;
 	}
 	else if(axis === 2){
-	let slider = div.querySelector("#rotationX");
-	let rot_x = Number(slider.value);
-	radians = (rot_x  * Math.PI) / 180 ;
+		let slider = div.querySelector("#rotationX");
+		let rot_x = Number(slider.value);
+		radians = (rot_x  * Math.PI) / 180 ;
 	}
     return radians;
 }
@@ -222,6 +222,12 @@ function changeZoom(){
     let slider = div.querySelector("#scale");
 	let zoom = Number(slider.value);
     return zoom;
+}
+function changePan(){
+	let div = document.querySelector("#config");
+	let slider = div.querySelector("#pan");
+	let pan = Number(slider.value);
+	return pan;
 }
 
 function draw()
@@ -248,11 +254,11 @@ function draw()
 
 	modelMatrix = identityMatrix();
 
-	// TODO: set up transformations to the model
+	// DONE: set up transformations to the model
 	modelMatrix = multiplyMatrices(scaleMatrix(4,1.5,3),modelMatrix);
 	modelMatrix = multiplyMatrices(translateMatrix(-2,1,1),modelMatrix);
 
-	// //flips mesh forward and backward
+	//flips mesh forward and backward
 	let rotateX = rotateXMatrix(Rotation(2));
     modelMatrix = multiplyMatrices(rotateX,modelMatrix);
 
@@ -260,18 +266,24 @@ function draw()
 	let rotateY = rotateYMatrix(Rotation(0));	
     modelMatrix = multiplyMatrices(rotateY,modelMatrix);
 
-	// //flips the mesh left and right
+	//flips the mesh left and right
 	let rotateZ = rotateZMatrix(Rotation(1));
 	modelMatrix = multiplyMatrices(rotateZ,modelMatrix)
 
+	//using mouse inputs
 	if(gray_vao) {
-	//Height slider changes elevation
+	 //Height slider changes elevation
 	 let max_y = heightmapData.height;
 	 modelMatrix = multiplyMatrices(scaleMatrix(1,changeElevation()/max_y*4,1),modelMatrix);
+	} else if(box_vao){
+	 modelMatrix = multiplyMatrices(scaleMatrix(1,changeElevation()*0.1,1),modelMatrix);
 	}
 
 	//zooming in and out
     modelMatrix = multiplyMatrices(scaleMatrix(changeZoom()*0.01,changeZoom()*0.01,changeZoom()*0.01),modelMatrix);
+
+    //panning
+	modelMatrix = multiplyMatrices(translateMatrix(changePan()*0.05,changePan()*0.05,0),modelMatrix);
 	
 	// setup viewing matrix
 	var eyeToTarget = subtract(target, eye);
@@ -406,9 +418,12 @@ function addMouseCallback(canvas)
 		{
 			console.log("Scrolled up");
 			// e.g., zoom in
+			wheelZoom = e.deltaY;
+			
 		} else {
 			console.log("Scrolled down");
 			// e.g., zoom out
+			wheelZoom = e.deltaY;
 		}
 	});
 
@@ -423,7 +438,7 @@ function addMouseCallback(canvas)
 
 		// implement dragging logic
        var rot_Y = rotateYMatrix(deltaX * Math.PI/180); 
-       var rot_Z = rotateZMatrix(deltaY * Math.PI/180);
+       leftVertZ = rotateZMatrix(deltaY * Math.PI/180);
        
        modelMatrix = multiplyMatrices(rot_Y, modelMatrix);
        modelMatrix = multiplyMatrices(rot_Z, modelMatrix);
