@@ -11,9 +11,12 @@ var box_vertexCount = 0;
 var uniformModelViewLoc = null;
 var uniformProjectionLoc = null;
 var heightmapData = null;
-var leftVertZ = 0;
-var leftHorY = 0;
-var wheelZoom = 0;
+
+var leftVertZ = 1;
+var leftHorY = 1;
+var wheelZoom = 1;
+var rightPan = 1;
+
 var modelMatrix;
 
 function processImage(img)
@@ -78,7 +81,7 @@ window.loadImageFile = function(event)
 			heightmapData = processImage(img);
 			
 			/*
-				TODO: using the data in heightmapData, create a triangle mesh
+				DONE: using the data in heightmapData, create a triangle mesh
 					heightmapData.data: array holding the actual data, note that 
 					this is a single dimensional array the stores 2D data in row-major order
 
@@ -270,7 +273,6 @@ function draw()
 	let rotateZ = rotateZMatrix(Rotation(1));
 	modelMatrix = multiplyMatrices(rotateZ,modelMatrix)
 
-	//using mouse inputs
 	if(gray_vao) {
 	 //Height slider changes elevation
 	 let max_y = heightmapData.height;
@@ -282,8 +284,14 @@ function draw()
 	//zooming in and out
     modelMatrix = multiplyMatrices(scaleMatrix(changeZoom()*0.01,changeZoom()*0.01,changeZoom()*0.01),modelMatrix);
 
-    //panning
+    //pan with the slider
 	modelMatrix = multiplyMatrices(translateMatrix(changePan()*0.05,changePan()*0.05,0),modelMatrix);
+
+	//mouse options
+	modelMatrix = multiplyMatrices(leftHorY, modelMatrix);
+	modelMatrix = multiplyMatrices(leftVertZ, modelMatrix);
+	modelMatrix = multiplyMatrices(rightPan,modelMatrix);
+	modelMatrix = multiplyMatrices(scaleMatrix(wheelZoom,wheelZoom,wheelZoom),modelMatrix);
 	
 	// setup viewing matrix
 	var eyeToTarget = subtract(target, eye);
@@ -416,14 +424,19 @@ function addMouseCallback(canvas)
 
 		if (e.deltaY < 0) 
 		{
-			console.log("Scrolled up");
-			// e.g., zoom in
-			wheelZoom = e.deltaY;
+			console.log("Scrolled up")
+			// console.log(e.deltaY);
+			// zoom in
+
+			//scaling factor
+			wheelZoom *= 1.05;
 			
 		} else {
 			console.log("Scrolled down");
-			// e.g., zoom out
-			wheelZoom = e.deltaY;
+			//  zoom out
+
+			//scaling factor
+			wheelZoom /= 1.05;
 		}
 	});
 
@@ -437,12 +450,14 @@ function addMouseCallback(canvas)
 		console.log('mouse drag by: ' + deltaX + ', ' + deltaY);
 
 		// implement dragging logic
-       var rot_Y = rotateYMatrix(deltaX * Math.PI/180); 
-       leftVertZ = rotateZMatrix(deltaY * Math.PI/180);
-       
-       modelMatrix = multiplyMatrices(rot_Y, modelMatrix);
-       modelMatrix = multiplyMatrices(rot_Z, modelMatrix);
 		
+	if(leftMouse){
+       leftHorY = rotateYMatrix(deltaX * Math.PI/180); 
+       leftVertZ = rotateZMatrix(deltaY * Math.PI/180);
+	}
+		if(!leftMouse){
+			rightPan = translateMatrix(deltaX*0.01,0,deltaY*0.01);
+		}
 	});
 
 	document.addEventListener("mouseup", function () {
